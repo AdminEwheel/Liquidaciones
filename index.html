@@ -205,6 +205,20 @@
       <div class="drop-zone" id="ppl-drop-csv"><input type="file" accept=".csv" id="ppl-input-csv"><span class="drop-icon">📄</span><div class="drop-label">CSV de movimientos PayPal</div><div class="drop-sub">Download.CSV</div></div>
       <div class="file-status" id="ppl-status-csv"><div class="dot"></div><span>Sin archivo</span></div>
     </div>
+    <div class="card">
+      <div class="card-title">Saldo inicial</div>
+      <div style="display:flex; align-items:center; gap:16px; padding:8px 0;">
+        <label style="font-size:14px; color:var(--text2); white-space:nowrap; font-weight:500;">Saldo del día anterior</label>
+        <div style="position:relative; flex:1; max-width:220px;">
+          <span style="position:absolute; left:14px; top:50%; transform:translateY(-50%); font-size:16px; color:#60a5fa; font-family:'DM Mono',monospace; pointer-events:none; font-weight:700;">€</span>
+          <input type="number" id="ppl-saldo-inicial" value="" step="0.01" placeholder="Introduce el saldo..."
+            style="width:100%; padding:14px 14px 14px 32px; background:var(--surface2); border:2px solid #60a5fa; border-radius:10px; color:#60a5fa; font-family:'DM Mono',monospace; font-size:18px; font-weight:700; text-align:right; outline:none; transition:all 0.2s;"
+            onfocus="this.style.borderColor='#93c5fd'; this.style.color='#93c5fd'"
+            onblur="this.style.borderColor='#60a5fa'; this.style.color='#60a5fa'"
+            oninput="pplCheckReady()">
+        </div>
+      </div>
+    </div>
     <div class="card card:last-of-type">
       <div class="card-title">Generar</div>
       <button class="btn" id="ppl-btn" disabled onclick="paypalGenerate()">Generar Excel</button>
@@ -866,9 +880,15 @@ let pplCsvText = null;
 
 setupDrop('ppl-drop-csv', 'ppl-input-csv', f => {
   const r = new FileReader();
-  r.onload = ev => { pplCsvText = ev.target.result; setStatus('ppl-status-csv', f.name, true); document.getElementById('ppl-btn').disabled = false; };
+  r.onload = ev => { pplCsvText = ev.target.result; setStatus('ppl-status-csv', f.name, true); pplCheckReady(); };
   r.readAsText(f, 'UTF-8');
 });
+
+function pplCheckReady() {
+  const hasCsv   = !!pplCsvText;
+  const hasSaldo = document.getElementById('ppl-saldo-inicial').value.trim() !== '';
+  document.getElementById('ppl-btn').disabled = !(hasCsv && hasSaldo);
+}
 
 async function paypalGenerate() {
   document.getElementById('ppl-log').innerHTML = '';
@@ -878,7 +898,6 @@ async function paypalGenerate() {
   try {
     log('Leyendo CSV...');
 
-    // PayPal CSV usa coma como separador
     const lines = pplCsvText.split('\n').filter(l => l.trim());
     const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
     const rows = lines.slice(1).map(line => {
@@ -896,25 +915,23 @@ async function paypalGenerate() {
 
     log(`${rows.length} filas`);
 
-    // Columnas: A(0)=Fecha, H(7)=Bruto, I(8)=Tarifa, K(10)=Email remitente, AD(29)=Saldo
     const COL_A  = headers[0];   // Fecha
     const COL_H  = headers[7];   // Bruto
-    const COL_I  = headers[8];   // Tarifa (comisiones)
-    const COL_K  = headers[10];  // Email remitente
+    const COL_I  = headers[8];   // Tarifa
+    const COL_K  = headers[10];  // Email
     const COL_AD = headers[29];  // Saldo
 
+    // Formato español: punto=miles, coma=decimal
     function toNum(v) {
-      try { return parseFloat(String(v).replace(/\./g,'').replace(',','.')) || 0; }
+      try { return parseFloat(String(v).trim().replace(/\./g,'').replace(',','.')) || 0; }
       catch { return 0; }
     }
 
-    const lastFecha  = rows[rows.length-1]?.[COL_A] || '';
-    const totalBruto = round2(rows.reduce((s,r) => s + toNum(r[COL_H]), 0));
-    const totalTarifa= round2(rows.reduce((s,r) => s + toNum(r[COL_I]), 0));
-    const lastSaldo  = toNum(rows[rows.length-1]?.[COL_AD] || '0');
-    const saldoComisiones = round2(lastSaldo + totalTarifa);
+    const lastFecha   = rows[rows.length-1]?.[COL_A] || '';
+    const saldoInicial = round2(parseFloat(document.getElementById('ppl-saldo-inicial').value) || 0);
+    const totalTarifa = round2(rows.reduce((s,r) => s + toNum(r[COL_I]), 0));
 
-    log(`Total bruto: ${fmtEur(totalBruto)} | Comisiones: ${fmtEur(totalTarifa)}`, 'ok');
+    log(`Saldo inicial: ${fmtEur(saldoInicial)} | Total comisiones: ${fmtEur(totalTarifa)}`, 'ok');
 
     // Build Excel
     const wb = new ExcelJS.Workbook();
@@ -940,42 +957,38 @@ async function paypalGenerate() {
       r.commit();
     }
 
-    // Cabecera — fila 1
+    // Cabecera fila 1
     const H = {bold:true, size:11};
-    const Hf = 'FFF3F4F6';
     pWrite([
-      {v:COL_A,  font:H, fill:Hf, align:'left' },
-      {v:COL_H,  font:H, fill:Hf, align:'right'},
-      {v:COL_K,  font:H, fill:Hf, align:'left' },
-      {v:COL_AD, font:H, fill:Hf, align:'right'},
+      {v:'Fecha',    font:H, fill:'FFF3F4F6', align:'left'  },
+      {v:'Bruto',    font:H, fill:'FFF3F4F6', align:'right' },
+      {v:'Concepto', font:H, fill:'FFF3F4F6', align:'left'  },
+      {v:'Saldo',    font:H, fill:'FFF3F4F6', align:'right' },
     ], 18);
 
-    // Filas de datos
+    // Filas de datos — saldo acumulativo desde saldo inicial, sin restar comisiones
+    let tBruto = 0;
+    let saldoAcum = saldoInicial;
     for (const row of rows) {
+      const bruto = toNum(row[COL_H]);
+      saldoAcum = round2(saldoAcum + bruto);
+      tBruto = round2(tBruto + bruto);
       pWrite([
-        {v:row[COL_A],            font:{size:10}, align:'left'  },
-        {v:row[COL_H],            font:{size:10}, align:'right', fmt:numFmt},
-        {v:row[COL_K]||'',        font:{size:10, color:{argb:'FF6B7280'}}, align:'left'},
-        {v:row[COL_AD],           font:{size:10}, align:'right', fmt:numFmt},
+        {v:row[COL_A]||'',  font:{size:10},                          align:'left'  },
+        {v:bruto,            font:{size:10},                          align:'right', fmt:numFmt},
+        {v:row[COL_K]||'',  font:{size:10, color:{argb:'FF6B7280'}}, align:'left'  },
+        {v:saldoAcum,        font:{size:10},                          align:'right', fmt:numFmt},
       ]);
     }
 
-    // Fila total bruto
+    // Fila comisiones al final — resta las comisiones del saldo acumulado
+    const saldoCom = round2(saldoAcum + totalTarifa);
     const R = {bold:true, size:10, color:{argb:'FFDC2626'}};
-    const Rf = 'FFFEF2F2';
     pWrite([
-      {v:lastFecha,          font:R, fill:Rf, align:'left' },
-      {v:String(totalBruto).replace('.',','), font:R, fill:Rf, align:'right'},
-      {v:'',                 font:R, fill:Rf, align:'left' },
-      {v:String(lastSaldo).replace('.',','),  font:R, fill:Rf, align:'right'},
-    ], 18);
-
-    // Fila comisiones
-    pWrite([
-      {v:lastFecha,               font:R, fill:Rf, align:'left' },
-      {v:String(totalTarifa).replace('.',','), font:R, fill:Rf, align:'right'},
-      {v:'Comisiones',            font:R, fill:Rf, align:'left' },
-      {v:String(saldoComisiones).replace('.',','), font:R, fill:Rf, align:'right'},
+      {v:lastFecha,          font:R, fill:'FFFEF2F2', align:'left'  },
+      {v:totalTarifa,        font:R, fill:'FFFEF2F2', align:'right', fmt:numFmt},
+      {v:'Gastos bancarios', font:R, fill:'FFFEF2F2', align:'left'  },
+      {v:saldoCom,           font:R, fill:'FFFEF2F2', align:'right', fmt:numFmt},
     ], 18);
 
     await downloadXlsx(wb, 'paypal_movimientos');
@@ -985,9 +998,9 @@ async function paypalGenerate() {
     sg.style.display = 'grid';
     sg.innerHTML = `
       <div class="stat-box"><label>Transacciones</label><div class="val pos">${rows.length}</div></div>
-      <div class="stat-box"><label>Total bruto</label><div class="val pos">${fmtEur(totalBruto)}</div></div>
+      <div class="stat-box"><label>Total bruto</label><div class="val pos">${fmtEur(tBruto)}</div></div>
       <div class="stat-box"><label>Comisiones</label><div class="val neg">${fmtEur(totalTarifa)}</div></div>
-      <div class="stat-box"><label>Saldo final</label><div class="val">${fmtEur(lastSaldo)}</div></div>
+      <div class="stat-box"><label>Saldo final</label><div class="val">${fmtEur(saldoCom)}</div></div>
     `;
 
   } catch(e) { makeLog('ppl-log')('Error: '+e.message,'err'); console.error(e); }
