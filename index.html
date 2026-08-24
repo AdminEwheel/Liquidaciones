@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Liquidaciones</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --bg:#0f1117; --surface:#181c27; --surface2:#1e2333;
+    --border:#2a2f45; --border2:#353b55;
+    --accent:#6ee7b7; --accent2:#34d399;
+    --red:#f87171; --orange:#fbbf24;
+    --text:#e2e8f0; --text2:#94a3b8; --text3:#64748b;
+    --radius:12px;
+  }
+  body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:48px 24px; }
+  header { text-align:center; margin-bottom:40px; position:relative; overflow:hidden; background:#0f1117; border-radius:16px; padding:40px 32px; width:100%; max-width:780px; }
+  header::before { content:''; position:absolute; top:-40px; right:-40px; width:160px; height:160px; border-radius:50%; background:rgba(110,231,183,0.06); pointer-events:none; }
+  header::after  { content:''; position:absolute; bottom:-30px; left:-20px; width:100px; height:100px; border-radius:50%; background:rgba(59,130,246,0.05); pointer-events:none; }
+  .app-badge { display:inline-block; font-family:'DM Mono',monospace; font-size:10px; letter-spacing:0.15em; text-transform:uppercase; color:var(--accent); border:0.5px solid rgba(110,231,183,0.3); border-radius:20px; padding:3px 12px; margin-bottom:14px; }
+  .app-title { font-size:40px; font-weight:200; letter-spacing:-0.04em; color:#e2e8f0; margin:0; }
+  .app-title em { font-style:normal; font-weight:700; background:linear-gradient(90deg,#6ee7b7,#3b82f6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .tabs-wrap { width:100%; max-width:780px; }
+  .tabs { display:flex; gap:4px; padding:6px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius) var(--radius) 0 0; border-bottom:none; }
+  .tab-btn { flex:1; padding:10px 16px; background:transparent; border:none; border-radius:8px; font-family:'DM Sans',sans-serif; font-size:14px; font-weight:500; color:var(--text3); cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .tab-btn:hover { background:var(--surface2); color:var(--text2); }
+  .tab-btn.active { background:var(--surface2); color:var(--text); }
+  .mkt-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; transition:background 0.2s; background:var(--border2); }
+  .tab-btn.active .mkt-dot { background:var(--accent); }
+  .badge-soon { font-family:'DM Mono',monospace; font-size:9px; padding:2px 6px; border-radius:20px; background:var(--surface2); color:var(--text3); border:1px solid var(--border2); }
+  .panels { width:100%; max-width:780px; }
+  .panel { display:none; }
+  .panel.active { display:block; }
+  .panel-header { background:var(--surface); border:1px solid var(--border); border-top:none; padding:28px 32px 24px; display:flex; align-items:center; gap:20px; }
+  .mkt-icon { font-size:36px; }
+  .mkt-name { font-size:28px; font-weight:600; letter-spacing:-0.02em; }
+  .mkt-desc { font-size:13px; color:var(--text3); margin-top:4px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-top:none; padding:28px 32px; }
+  .card:last-of-type { border-radius:0 0 var(--radius) var(--radius); margin-bottom:20px; }
+  .card-title { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:0.15em; text-transform:uppercase; color:var(--text3); margin-bottom:18px; }
+  .upload-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .drop-zone { border:1.5px dashed var(--border2); border-radius:8px; padding:24px 20px; text-align:center; cursor:pointer; transition:all 0.2s; position:relative; margin-bottom:10px; }
+  .drop-zone:hover,.drop-zone.drag-over { border-color:var(--accent); background:rgba(110,231,183,0.04); }
+  .drop-zone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+  .drop-icon { font-size:24px; margin-bottom:8px; display:block; }
+  .drop-label { font-size:14px; color:var(--text2); }
+  .drop-sub { font-family:'DM Mono',monospace; font-size:11px; color:var(--text3); margin-top:4px; }
+  .file-status { display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--surface2); border-radius:6px; font-size:13px; color:var(--text2); min-height:38px; }
+  .file-status .dot { width:8px; height:8px; border-radius:50%; background:var(--border2); flex-shrink:0; transition:background 0.3s; }
+  .file-status.ok .dot { background:var(--accent); }
+  .file-status .name { font-family:'DM Mono',monospace; font-size:12px; color:var(--accent); }
+  .divider { height:1px; background:var(--border); margin:24px 0; }
+  .btn { width:100%; padding:13px 24px; background:var(--accent); color:#0f1117; border:none; border-radius:8px; font-family:'DM Sans',sans-serif; font-size:15px; font-weight:600; cursor:pointer; transition:all 0.2s; }
+  .btn:hover:not(:disabled) { background:var(--accent2); transform:translateY(-1px); box-shadow:0 4px 20px rgba(110,231,183,0.2); }
+  .btn:disabled { opacity:0.3; cursor:not-allowed; }
+  .log { font-family:'DM Mono',monospace; font-size:12px; color:var(--text3); line-height:1.8; min-height:50px; }
+  .log .ok { color:var(--accent); } .log .err { color:var(--red); } .log .warn { color:var(--orange); } .log .info { color:var(--text2); }
+  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:14px; }
+  .stat-box { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
+  .stat-box label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text3); display:block; margin-bottom:4px; }
+  .stat-box .val { font-size:17px; font-weight:500; }
+  .stat-box .val.neg { color:var(--red); } .stat-box .val.pos { color:var(--accent); }
+  .brand-logo { width:52px; height:52px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-weight:900; font-size:13px; letter-spacing:-0.04em; }
+  .logo-dct { background:#007DBC; color:#fff; font-size:11px; font-weight:800; letter-spacing:0.01em; }
+  .logo-amz { background:#FF9900; color:#131921; font-size:18px; font-weight:900; }
+  .logo-eby { background:#fff; border:1.5px solid #e5e7eb; overflow:hidden; }
+  .logo-eby span { display:flex; }
+  .logo-eby span b { font-size:16px; font-weight:900; }
+  .logo-mon { background:#00d4aa; color:#fff; font-size:11px; font-weight:800; }
+  .logo-cai { background:#005b94; color:#fff; font-size:10px; font-weight:800; letter-spacing:0.01em; }
+  .logo-ppl { background:#003087; color:#fff; font-size:10px; font-weight:900; letter-spacing:0.01em; }
+  .coming-soon .cs-icon { font-size:40px; margin-bottom:16px; display:block; opacity:0.4; }
+  .coming-soon h3 { font-size:18px; font-weight:500; color:var(--text2); margin-bottom:8px; }
+  .coming-soon p { font-size:13px; font-family:'DM Mono',monospace; }
+  footer { font-family:'DM Mono',monospace; font-size:11px; color:var(--text3); text-align:center; opacity:0.5; margin-top:12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="app-badge">Generador de liquidaciones</div>
+  <h1 class="app-title">Multi<em>Market</em></h1>
+</header>
+
+<div class="tabs-wrap">
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('decathlon')"><span class="mkt-dot"></span>Decathlon</button>
+    <button class="tab-btn" onclick="switchTab('amazon')"><span class="mkt-dot"></span>Amazon<span class="badge-soon">pronto</span></button>
+    <button class="tab-btn" onclick="switchTab('ebay')"><span class="mkt-dot"></span>eBay<span class="badge-soon">pronto</span></button>
+    <button class="tab-btn" onclick="switchTab('monei')"><span class="mkt-dot"></span>Monei</button>
+    <button class="tab-btn" onclick="switchTab('caixabank')"><span class="mkt-dot"></span>Caixabank</button>
+    <button class="tab-btn" onclick="switchTab('paypal')"><span class="mkt-dot"></span>PayPal</button>
+  </div>
+</div>
+
+<div class="panels">
+
+  <!-- DECATHLON -->
+  <div class="panel active" id="panel-decathlon">
+    <div class="panel-header">
+      <div class="brand-logo logo-dct">DECATHLON</div>
+      <div>
+        <div class="mkt-name" style="color:#007DBC">Decathlon</div>
+        <div class="mkt-desc">Transaction log CSV + Excel de facturas → Excel de liquidación</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Archivos de entrada</div>
+      <div class="upload-grid">
+        <div>
+          <div class="drop-zone" id="dct-drop-csv"><input type="file" accept=".csv" id="dct-input-csv"><span class="drop-icon">📄</span><div class="drop-label">CSV transaction log</div><div class="drop-sub">separado por punto y coma</div></div>
+          <div class="file-status" id="dct-status-csv"><div class="dot"></div><span>Sin archivo</span></div>
+        </div>
+        <div>
+          <div class="drop-zone" id="dct-drop-xlsx"><input type="file" accept=".xlsx,.xls" id="dct-input-xlsx"><span class="drop-icon">📊</span><div class="drop-label">Excel de facturas</div><div class="drop-sub">marketplace · Nº factura · Serie</div></div>
+          <div class="file-status" id="dct-status-xlsx"><div class="dot"></div><span>Sin archivo</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card card:last-of-type">
+      <div class="card-title">Generar</div>
+      <button class="btn" id="dct-btn" disabled onclick="decathlonGenerate()">Generar Excel de liquidación</button>
+      <div class="divider"></div>
+      <div class="log" id="dct-log"><span class="info">· Esperando archivos...</span></div>
+      <div class="stats-grid" id="dct-stats" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- AMAZON -->
+  <div class="panel" id="panel-amazon">
+    <div class="panel-header"><div class="brand-logo logo-amz">a</div><div><div class="mkt-name" style="color:#FF9900">Amazon</div><div class="mkt-desc">Lógica pendiente de configurar</div></div></div>
+    <div class="card card:last-of-type"><div class="coming-soon"><span class="cs-icon">🚧</span><h3>Próximamente</h3><p>Cuando tengas los archivos de Amazon, compártelos y configuramos la lógica.</p></div></div>
+  </div>
+
+  <!-- MONEI -->
+  <div class="panel" id="panel-monei">
+    <div class="panel-header">
+      <div class="brand-logo logo-mon">MONEI</div>
+      <div>
+        <div class="mkt-name" style="color:#00d4aa">Monei</div>
+        <div class="mkt-desc">Settlement CSV → Excel con transacciones y comisiones</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Archivo de entrada</div>
+      <div class="drop-zone" id="mon-drop-csv"><input type="file" accept=".csv" id="mon-input-csv" multiple><span class="drop-icon">📄</span><div class="drop-label">CSV Settlement statement</div><div class="drop-sub">Settlement_statement_*.csv · puedes subir varios a la vez</div></div>
+      <div class="file-status" id="mon-status-csv"><div class="dot"></div><span>Sin archivo</span></div>
+    </div>
+    <div class="card card:last-of-type">
+      <div class="card-title">Generar</div>
+      <button class="btn" id="mon-btn" disabled onclick="moneiGenerate()">Generar Excel</button>
+      <div class="divider"></div>
+      <div class="log" id="mon-log"><span class="info">· Esperando archivo...</span></div>
+      <div class="stats-grid" id="mon-stats" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- CAIXABANK -->
+  <div class="panel" id="panel-caixabank">
+    <div class="panel-header">
+      <div class="brand-logo logo-cai">CaixaBank</div>
+      <div>
+        <div class="mkt-name" style="color:#005b94">Caixabank</div>
+        <div class="mkt-desc">XLS movimientos de cuenta → Excel limpio con cabecera</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Archivo de entrada</div>
+      <div class="drop-zone" id="cai-drop-xls"><input type="file" accept=".xls,.xlsx" id="cai-input-xls"><span class="drop-icon">📄</span><div class="drop-label">XLS movimientos cuenta</div><div class="drop-sub">Movimientos_cuenta_*.xls</div></div>
+      <div class="file-status" id="cai-status-xls"><div class="dot"></div><span>Sin archivo</span></div>
+    </div>
+    <div class="card card:last-of-type">
+      <div class="card-title">Generar</div>
+      <button class="btn" id="cai-btn" disabled onclick="caixabankGenerate()">Generar Excel</button>
+      <div class="divider"></div>
+      <div class="log" id="cai-log"><span class="info">· Esperando archivo...</span></div>
+      <div class="stats-grid" id="cai-stats" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- EBAY -->
+  <div class="panel" id="panel-ebay">
+    <div class="panel-header">
+      <div class="brand-logo logo-eby"><span><b style="color:#e53238">e</b><b style="color:#0064d2">b</b><b style="color:#f5af02">a</b><b style="color:#86b817">y</b></span></div>
+      <div><div class="mkt-name" style="color:#0064d2">eBay</div><div class="mkt-desc">Lógica pendiente de configurar</div></div>
+    </div>
+    <div class="card card:last-of-type"><div class="coming-soon"><span class="cs-icon">🚧</span><h3>Próximamente</h3><p>Cuando tengas los archivos de eBay, compártelos y configuramos la lógica.</p></div></div>
+  </div>
+
+  <!-- PAYPAL -->
+  <div class="panel" id="panel-paypal">
+    <div class="panel-header">
+      <div class="brand-logo logo-ppl">PayPal</div>
+      <div>
+        <div class="mkt-name" style="color:#003087">PayPal</div>
+        <div class="mkt-desc">CSV de movimientos → Excel con transacciones y comisiones</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Archivo de entrada</div>
+      <div class="drop-zone" id="ppl-drop-csv"><input type="file" accept=".csv" id="ppl-input-csv"><span class="drop-icon">📄</span><div class="drop-label">CSV de movimientos PayPal</div><div class="drop-sub">Download.CSV</div></div>
+      <div class="file-status" id="ppl-status-csv"><div class="dot"></div><span>Sin archivo</span></div>
+    </div>
+    <div class="card card:last-of-type">
+      <div class="card-title">Generar</div>
+      <button class="btn" id="ppl-btn" disabled onclick="paypalGenerate()">Generar Excel</button>
+      <div class="divider"></div>
+      <div class="log" id="ppl-log"><span class="info">· Esperando archivo...</span></div>
+      <div class="stats-grid" id="ppl-stats" style="display:none"></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>Procesado en local · sin subida de datos</footer>
+
+<script>
+function switchTab(id) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    const ids = ['decathlon','amazon','ebay','monei','caixabank','paypal'];
+    const active = ids[i] === id;
+    b.classList.toggle('active', active);
+    const dot = b.querySelector('.mkt-dot');
+    if (dot) dot.style.background = active ? 'var(--accent)' : 'var(--border2)';
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-'+id));
+}
+
+// Init dot colors
+document.querySelector('.tab-btn.active .mkt-dot').style.background = 'var(--accent)';
+
+// ================================================================
+// UTILITIES
+// ================================================================
+const fmtEur = v => Math.abs(v).toFixed(2).replace('.', ',') + ' €';
+const round2 = v => Math.round(v * 100) / 100;
+
+function norm(s) {
+  return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function parseCSV(text) {
+  const lines = text.split('\n').filter(l => l.trim());
+  const headers = lines[0].split(';').map(h => h.replace(/^"|"$/g,'').trim());
+  return lines.slice(1).map(line => {
+    const vals = []; let cur = '', inQ = false;
+    for (const ch of line) {
+      if (ch === '"') inQ = !inQ;
+      else if (ch === ';' && !inQ) { vals.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    vals.push(cur.trim());
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = (vals[i]||'').replace(/^"|"$/g,'').trim());
+    return obj;
+  }).filter(r => Object.values(r).some(v => v));
+}
+
+function findCol(keys, ...needles) {
+  const kl = keys.map(k => norm(k));
+  for (const needle of needles) {
+    const idx = kl.findIndex(k => k.includes(norm(needle)));
+    if (idx >= 0) return keys[idx];
+  }
+  return null;
+}
+
+function toNum(v) { return parseFloat(String(v||0).replace(',','.')) || 0; }
+
+function fmtDate(s) {
+  if (!s || s === 'nan') return '—';
+  s = String(s).slice(0,10);
+  if (s.includes('/')) return s;
+  const p = s.split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : s;
+}
+
+function dateMs(dmy) {
+  if (!dmy || dmy === '—') return 0;
+  const [d,m,y] = dmy.split('/');
+  return new Date(`${y}-${m}-${d}`).getTime();
+}
+
+function setupDrop(dropId, inputId, onFile) {
+  const drop = document.getElementById(dropId);
+  const inp  = document.getElementById(inputId);
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0]; if (!f) return;
+    const dt = new DataTransfer(); dt.items.add(f);
+    inp.files = dt.files; inp.dispatchEvent(new Event('change'));
+  });
+  inp.addEventListener('change', e => { const f = e.target.files[0]; if (f) onFile(f); });
+}
+
+function setStatus(id, name, ok) {
+  const el = document.getElementById(id);
+  el.className = 'file-status' + (ok ? ' ok' : '');
+  el.innerHTML = `<div class="dot"></div><span class="name">${name}</span>`;
+}
+
+function makeLog(id) {
+  return (msg, type='info') => {
+    const pre = {ok:'✓ ', err:'✗ ', warn:'⚠ ', info:'· '}[type]||'· ';
+    document.getElementById(id).innerHTML += `<div class="${type}">${pre}${msg}</div>`;
+  };
+}
+
+function showStats(id, tV, tR, tC, liq) {
+  const el = document.getElementById(id);
+  el.style.display = 'grid';
+  el.innerHTML = `
+    <div class="stat-box"><label>Ventas brutas</label><div class="val pos">${fmtEur(tV)}</div></div>
+    <div class="stat-box"><label>Reembolsos</label><div class="val neg">−${fmtEur(tR)}</div></div>
+    <div class="stat-box"><label>Comisiones</label><div class="val neg">−${fmtEur(tC)}</div></div>
+    <div class="stat-box"><label>Liquidado</label><div class="val pos">${fmtEur(liq)}</div></div>`;
+}
+
+async function downloadXlsx(wb, name) {
+  const buf  = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const d    = new Date();
+  a.href = url;
+  a.download = `${name}_${d.getFullYear()}_${String(d.getMonth()+1).padStart(2,'0')}_${String(d.getDate()).padStart(2,'0')}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Excel sheet builder
+function makeSheet(wb, sheetName) {
+  const ws = wb.addWorksheet(sheetName);
+  ws.views = [{state:'frozen', ySplit:1}];
+  ws.columns = [{key:'a',width:14},{key:'b',width:22},{key:'c',width:14},{key:'d',width:14},{key:'e',width:14}];
+  const numFmt = '#,##0.00 €';
+  // Empezar desde fila 1 sin dejar vacía
+  // addRow() de ExcelJS añade siempre al final; usamos getRow(n) con índice explícito
+  let row = 1;
+
+  function write(cells, height=16) {
+    const r = ws.getRow(row);
+    row++;
+    r.height = height;
+    cells.forEach((cfg, i) => {
+      const c = r.getCell(i+1);
+      c.value = cfg.v !== undefined ? cfg.v : '';
+      c.font  = {name:'Arial', ...cfg.font};
+      if (cfg.fill) c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:cfg.fill}};
+      c.alignment = {horizontal:cfg.align||'left', vertical:'center'};
+      if (cfg.fmt) c.numFmt = cfg.fmt;
+    });
+    r.commit();
+  }
+
+  function sep(label) {
+    const S = {bold:true, size:8, color:{argb:'FF6B7280'}};
+    write([{v:label,font:S,fill:'FFF9FAFB'},{v:'',font:S,fill:'FFF9FAFB'},{v:'',font:S,fill:'FFF9FAFB'},{v:'',font:S,fill:'FFF9FAFB'},{v:'',font:S,fill:'FFF9FAFB'}], 14);
+  }
+
+  function foot(colA, value, bg, fg, size=10, colB='', colC='', colD='') {
+    const r = ws.getRow(row);
+    row++;
+    r.height = size===11?20:18;
+    const vals = [colA, colB, colC, colD, value];
+    for (let i=1;i<=5;i++) {
+      const c = r.getCell(i);
+      c.value = vals[i-1] !== undefined ? vals[i-1] : '';
+      c.font  = {name:'Arial',bold:true,size,color:{argb:fg}};
+      c.fill  = {type:'pattern',pattern:'solid',fgColor:{argb:bg}};
+      c.alignment = {horizontal:i===5?'right':'left',vertical:'center'};
+      if (i===5) c.numFmt = numFmt;
+    }
+    r.commit();
+  }
+
+  return {write, sep, foot, numFmt};
+}
+
+// ================================================================
+// DECATHLON
+// ================================================================
+let dctCsv = null, dctXlsx = null;
+
+setupDrop('dct-drop-csv', 'dct-input-csv', f => {
+  const r = new FileReader();
+  r.onload = ev => { dctCsv = ev.target.result; setStatus('dct-status-csv', f.name, true); dctReady(); };
+  r.readAsText(f, 'UTF-8');
+});
+setupDrop('dct-drop-xlsx', 'dct-input-xlsx', f => {
+  const r = new FileReader();
+  r.onload = ev => { dctXlsx = ev.target.result; setStatus('dct-status-xlsx', f.name, true); dctReady(); };
+  r.readAsArrayBuffer(f);
+});
+function dctReady() { document.getElementById('dct-btn').disabled = !(dctCsv && dctXlsx); }
+
+async function decathlonGenerate() {
+  document.getElementById('dct-log').innerHTML = '';
+  document.getElementById('dct-stats').style.display = 'none';
+  const log = makeLog('dct-log');
+
+  try {
+    // ---- 1. Parse CSV ----
+    log('Leyendo CSV...');
+    const rows = parseCSV(dctCsv);
+    log(`${rows.length} filas`);
+
+    const keys = Object.keys(rows[0]||{});
+    const COL_PED   = findCol(keys, 'número de pedido', 'numero de pedido', 'order number');
+    const COL_FECHA = findCol(keys, 'fecha de creación', 'fecha de creacion', 'date created', 'fecha');
+    const COL_TIPO  = findCol(keys, 'tipo', 'type');
+    const COL_DEBE  = findCol(keys, 'debe', 'debit');
+    const COL_HABER = findCol(keys, 'haber', 'credit');
+
+    if (!COL_PED||!COL_TIPO) throw new Error(`Columnas no encontradas: pedido="${COL_PED}" tipo="${COL_TIPO}"`);
+    log(`Columnas: pedido="${COL_PED}" | tipo="${COL_TIPO}"`);
+
+    // Matchers de tipo — normalizados, sin acentos, tolerantes a variaciones
+    const es   = (row,...ns) => ns.some(n => norm(row[COL_TIPO]).includes(norm(n)));
+    const noEs = (row,...ns) => ns.every(n => !norm(row[COL_TIPO]).includes(norm(n)));
+
+    const M = {
+      ventaProd:  r => es(r,'importe del pedido')                         && noEs(r,'reembolsado','envio','envío'),
+      ventaEnvio: r => es(r,'envio del pedido','envío del pedido')        && noEs(r,'reembolsado'),
+      comision:   r => es(r,'comisiones','comision','commission')          && noEs(r,'reembolso','refund','impuesto','tax'),
+      reembProd:  r => es(r,'pedido reembolsado')                         && noEs(r,'envio','envío'),
+      reembEnvio: r => es(r,'envio del pedido reembolsado','envío del pedido reembolsado'),
+      comRec:     r => es(r,'comision de reembolso','comisión de reembolso') && noEs(r,'impuesto','tax'),
+      suscrip:    r => es(r,'suscripcion','suscripción','subscription')   && noEs(r,'impuesto','tax'),
+      pago:       r => norm(r[COL_TIPO]) === 'pago' || norm(r[COL_TIPO]) === 'payment',
+    };
+
+    // Acumular por pedido — un pedido puede tener líneas de venta Y de reembolso
+    const pedMap = {};
+    const ensure = p => {
+      if (!pedMap[p]) pedMap[p] = {pedido:p, fechaV:'', fechaR:'', venta:0, envio:0, com:0, rProd:0, rEnvio:0, comRec:0};
+    };
+    let susc=0, fechaPago='—';
+
+    for (const row of rows) {
+      const p = row[COL_PED];
+      const d = toNum(row[COL_DEBE]);
+      const h = toNum(row[COL_HABER]);
+      const f = fmtDate((row[COL_FECHA]||'').slice(0,10));
+
+      if (M.pago(row))   { fechaPago=f; continue; }
+      if (M.suscrip(row)){ susc=round2(susc+d); continue; }
+      if (!p) continue;
+
+      ensure(p);
+      if ((M.ventaProd(row)||M.ventaEnvio(row)||M.comision(row)) && !pedMap[p].fechaV && f!=='—') pedMap[p].fechaV=f;
+      if ((M.reembProd(row)||M.reembEnvio(row)||M.comRec(row))   && !pedMap[p].fechaR && f!=='—') pedMap[p].fechaR=f;
+
+      if (M.ventaProd(row))  pedMap[p].venta  = round2(pedMap[p].venta  + h);
+      if (M.ventaEnvio(row)) pedMap[p].envio  = round2(pedMap[p].envio  + h);
+      if (M.comision(row))   pedMap[p].com    = round2(pedMap[p].com    + d);
+      if (M.reembProd(row))  pedMap[p].rProd  = round2(pedMap[p].rProd  + d);
+      if (M.reembEnvio(row)) pedMap[p].rEnvio = round2(pedMap[p].rEnvio + d);
+      if (M.comRec(row))     pedMap[p].comRec = round2(pedMap[p].comRec + h);
+    }
+
+    // Separar ventas y reembolsos — un pedido puede generar ambas filas
+    const ventasArr=[], reembArr=[];
+    for (const v of Object.values(pedMap)) {
+      if (v.venta>0||v.envio>0)   ventasArr.push({pedido:v.pedido, fecha:v.fechaV, total:round2(v.venta+v.envio), com:v.com});
+      if (v.rProd>0||v.rEnvio>0)  reembArr.push({pedido:v.pedido,  fecha:v.fechaR, importe:round2(v.rProd+v.rEnvio), comRec:v.comRec});
+    }
+    ventasArr.sort((a,b)=>dateMs(a.fecha)-dateMs(b.fecha));
+    reembArr.sort((a,b) =>dateMs(a.fecha)-dateMs(b.fecha));
+    log(`${ventasArr.length} ventas | ${reembArr.length} reembolsos${susc>0?` | suscripción ${fmtEur(susc)}`:''}`, 'ok');
+
+    // ---- 2. Parse Excel facturas ----
+    // IMPORTANTE: el nº de factura siempre sale del Excel, NUNCA del CSV
+    log('Leyendo Excel de facturas...');
+    const wbSrc = new ExcelJS.Workbook();
+    await wbSrc.xlsx.load(dctXlsx);
+    const wsSrc = wbSrc.worksheets[0];
+
+    // Detectar columnas con includeEmpty:true para que el índice sea correcto
+    // IMPORTANTE: parar en la primera coincidencia para evitar sobreescrituras
+    let iMkt=-1, iSerie=-1, iNum=-1;
+    wsSrc.getRow(1).eachCell({includeEmpty:true}, (cell, col) => {
+      const v = norm(String(cell.value||''));
+      if (iMkt  < 0 && v === 'marketplace')                                                                        iMkt  = col;
+      if (iSerie < 0 && v.includes('serie') && v.includes('factura'))                                             iSerie= col;
+      if (iNum  < 0 && v.includes('n') && v.includes('factura') && !v.includes('serie') && !v.includes('fecha')) iNum  = col;
+    });
+    if (iMkt<0||iSerie<0||iNum<0) throw new Error(`Columnas Excel no encontradas: marketplace=${iMkt} serie=${iSerie} num=${iNum}`);
+    log(`Excel: marketplace=col${iMkt} | serie=col${iSerie} | num=col${iNum}`);
+
+    // Construir lookup: pedido -> [{serie, num}]
+    const facLookup = {};
+    wsSrc.eachRow({includeEmpty:false}, (row, ri) => {
+      if (ri===1) return;
+      const mp    = String(row.getCell(iMkt).value  ||'').trim();
+      const serie = String(row.getCell(iSerie).value ||'').trim();
+      const num   = parseInt(String(row.getCell(iNum).value||'0').replace(/\D/g,''), 10);
+      if (!mp||!serie||!num) return;
+      if (!facLookup[mp]) facLookup[mp]=[];
+      facLookup[mp].push({serie, num});
+    });
+    log(`${Object.keys(facLookup).length} pedidos con factura en el Excel`, 'ok');
+
+    const getFac = (p, prefer) => {
+      const opts = facLookup[p]||[];
+      const hit  = opts.find(o => o.serie===prefer||o.serie.startsWith(prefer));
+      return hit ? `${hit.serie}-${hit.num}` : '—';
+    };
+    ventasArr.forEach(v => v.factura = getFac(v.pedido, 'EW'));
+    reembArr.forEach(r  => r.factura = getFac(r.pedido, 'FR'));
+
+    // ---- 3. Totales ----
+    const tVentas  = round2(ventasArr.reduce((s,v)=>s+v.total,   0));
+    const tReembs  = round2(reembArr.reduce( (s,r)=>s+r.importe, 0));
+    const tComV    = round2(ventasArr.reduce((s,v)=>s+v.com,     0));
+    const tComRec  = round2(reembArr.reduce( (s,r)=>s+r.comRec,  0));
+    const totalCom = round2(tComV - tComRec + susc);
+    const liquidado= round2(tVentas - tReembs - totalCom);
+
+    log(`Ventas: ${fmtEur(tVentas)} | Reembolsos: −${fmtEur(tReembs)}`);
+    log(`Com. ventas: −${fmtEur(tComV)} | Com. recuperada: +${fmtEur(tComRec)}${susc>0?` | Suscripción: −${fmtEur(susc)}`:''}`);
+    log(`Total comisiones: −${fmtEur(totalCom)}`);
+    log(`Liquidado: ${fmtEur(liquidado)}`, 'ok');
+
+    // ---- 4. Generar Excel ----
+    log('Generando Excel...');
+    const wb = new ExcelJS.Workbook();
+    const {write, sep, foot, numFmt} = makeSheet(wb, 'Liquidación');
+
+    // Cabecera
+    const H = {bold:true, size:9, color:{argb:'FF374151'}};
+    write([
+      {v:'Fecha',      font:H, fill:'FFF3F4F6', align:'left' },
+      {v:'Nº Pedido',  font:H, fill:'FFF3F4F6', align:'left' },
+      {v:'Nº Factura', font:H, fill:'FFF3F4F6', align:'left' },
+      {v:'Tipo',       font:H, fill:'FFF3F4F6', align:'left' },
+      {v:'Total',      font:H, fill:'FFF3F4F6', align:'right'},
+    ], 18);
+
+    // Ventas — sin fila separadora
+    for (const v of ventasArr) {
+      write([
+        {v:v.fecha,   font:{size:10,color:{argb:'FF111827'}},             align:'left' },
+        {v:v.pedido,  font:{size:10,color:{argb:'FF6B7280'},italic:true}, align:'left' },
+        {v:v.factura, font:{size:10,color:{argb:'FF6B7280'},italic:true}, align:'left' },
+        {v:'venta',   font:{size:10,color:{argb:'FF16A34A'}},             align:'left' },
+        {v:v.total,   font:{size:10,color:{argb:'FF111827'}},             align:'right', fmt:numFmt},
+      ]);
+    }
+
+    // Reembolsos — sin fila separadora
+    for (const r of reembArr) {
+      write([
+        {v:r.fecha,    font:{size:10,color:{argb:'FF111827'}},             align:'left' },
+        {v:r.pedido,   font:{size:10,color:{argb:'FF6B7280'},italic:true}, align:'left' },
+        {v:r.factura,  font:{size:10,color:{argb:'FF6B7280'},italic:true}, align:'left' },
+        {v:'reembolso',font:{size:10,color:{argb:'FFDC2626'}},             align:'left' },
+        {v:-r.importe, font:{size:10,color:{argb:'FFDC2626'}},             align:'right', fmt:numFmt},
+      ]);
+    }
+
+    // Suscripción (si la hay) — sin fila separadora
+    if (susc>0) {
+      write([
+        {v:fechaPago,    font:{size:10,color:{argb:'FF111827'}}, align:'left' },
+        {v:'—',          font:{size:10,color:{argb:'FF6B7280'}}, align:'left' },
+        {v:'—',          font:{size:10,color:{argb:'FF6B7280'}}, align:'left' },
+        {v:'suscripción',font:{size:10,color:{argb:'FFD97706'}}, align:'left' },
+        {v:-susc,        font:{size:10,color:{argb:'FFDC2626'}}, align:'right', fmt:numFmt},
+      ]);
+    }
+
+    // Fila Comisiones: fecha | — | Comisiones | Comisiones | -totalCom  (sin fila Liquidado)
+    foot(fechaPago, -totalCom, 'FFFEF2F2', 'FFDC2626', 10, '—', 'Comisiones', 'Comisiones');
+
+    await downloadXlsx(wb, 'liquidacion_decathlon');
+    log('Excel descargado', 'ok');
+    showStats('dct-stats', tVentas, tReembs, totalCom, liquidado);
+
+  } catch(e) { makeLog('dct-log')('Error: '+e.message,'err'); console.error(e); }
+}
+
+// ================================================================
+// MONEI
+// ================================================================
+let monCsvFiles = [];
+
+setupDrop('mon-drop-csv', 'mon-input-csv', f => {
+  // No hacer nada — el drop lee los archivos en batch abajo
+});
+
+document.getElementById('mon-input-csv').addEventListener('change', e => {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+  monCsvFiles = [];
+  let loaded = 0;
+  files.forEach(f => {
+    const r = new FileReader();
+    r.onload = ev => {
+      monCsvFiles.push({name: f.name, text: ev.target.result});
+      loaded++;
+      if (loaded === files.length) {
+        const el = document.getElementById('mon-status-csv');
+        el.className = 'file-status ok';
+        el.innerHTML = `<div class="dot"></div><span class="name">${files.length} archivo${files.length>1?'s':''} seleccionado${files.length>1?'s':''}</span>`;
+        document.getElementById('mon-btn').disabled = false;
+      }
+    };
+    r.readAsText(f, 'UTF-8');
+  });
+});
+
+// Override drop to support multiple files
+const monDrop = document.getElementById('mon-drop-csv');
+monDrop.addEventListener('drop', e => {
+  e.preventDefault(); monDrop.classList.remove('drag-over');
+  const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.csv'));
+  if (!files.length) return;
+  const dt = new DataTransfer();
+  files.forEach(f => dt.items.add(f));
+  document.getElementById('mon-input-csv').files = dt.files;
+  document.getElementById('mon-input-csv').dispatchEvent(new Event('change'));
+});
+
+function parseCSVComma(text) {
+  const lines = text.split('\n').filter(l => l.trim());
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
+  return lines.slice(1).map(line => {
+    const vals = []; let cur = '', inQ = false;
+    for (const ch of line) {
+      if (ch === '"') inQ = !inQ;
+      else if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    vals.push(cur.trim());
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = (vals[i]||'').replace(/^"|"$/g,'').trim());
+    return obj;
+  }).filter(r => Object.values(r).some(v => v));
+}
+
+async function moneiGenerate() {
+  document.getElementById('mon-log').innerHTML = '';
+  document.getElementById('mon-stats').style.display = 'none';
+  const log = makeLog('mon-log');
+
+  try {
+    if (!monCsvFiles.length) throw new Error('No hay archivos cargados');
+    log(`Procesando ${monCsvFiles.length} archivo${monCsvFiles.length>1?'s':''}...`);
+
+    let totalTrans = 0;
+
+    for (const file of monCsvFiles) {
+      log(`· Generando Excel para ${file.name}`);
+      const rows = parseCSVComma(file.text);
+
+      const data     = rows.filter(r => r['transaction_date'] && r['transaction_date'] !== '');
+      const specials = rows.filter(r => !r['transaction_date'] || r['transaction_date'] === '');
+
+      const maxFecha = data.map(r => r['transaction_date']).sort().reverse()[0] || '';
+
+      // Reservas = filas especiales donde fee está vacío (NaN en Python)
+      // La fila con fee=-0.20 NO es una reserva, ya está incluida en el total de comisiones
+      const reservas = specials
+        .filter(r => !r['fee'] || r['fee'] === '' || r['fee'] === 'NaN')
+        .map(r => parseFloat(r['net_activity'])||0)
+        .filter(v => v !== 0);
+
+      // Total fee: suma de TODA la columna K de todas las filas (incluye la fila especial con -0.20)
+      const totalFee = round2(rows.reduce((s,r) => s + (parseFloat(r['fee'])||0), 0));
+
+      // Build Excel
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Monei');
+      ws.views = [{state:'frozen', ySplit:1}];
+      ws.columns = [{key:'a',width:22},{key:'b',width:18},{key:'c',width:40}];
+      const numFmt = '#,##0.00 €';
+      let rowNum = 1;
+
+      function mWrite(cells, height=16) {
+        const r = ws.getRow(rowNum++);
+        r.height = height;
+        cells.forEach((cfg, i) => {
+          const c = r.getCell(i+1);
+          c.value = cfg.v !== undefined ? cfg.v : '';
+          c.font  = {name:'Arial', ...cfg.font};
+          if (cfg.fill) c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:cfg.fill}};
+          c.alignment = {horizontal:cfg.align||'left', vertical:'center'};
+          if (cfg.fmt) c.numFmt = cfg.fmt;
+        });
+        r.commit();
+      }
+
+      const H = {bold:true, size:9, color:{argb:'FF374151'}};
+      mWrite([
+        {v:'Fecha',   font:H, fill:'FFF3F4F6', align:'left' },
+        {v:'Importe', font:H, fill:'FFF3F4F6', align:'right'},
+        {v:'Email',   font:H, fill:'FFF3F4F6', align:'left' },
+      ], 18);
+
+      for (const row of data) {
+        mWrite([
+          {v:row['transaction_date'],                  font:{size:10,color:{argb:'FF111827'}}, align:'left'  },
+          {v:parseFloat(row['transaction_amount'])||0, font:{size:10,color:{argb:'FF111827'}}, align:'right', fmt:numFmt},
+          {v:row['customer_email']||'',                font:{size:10,color:{argb:'FF6B7280'}}, align:'left'  },
+        ]);
+      }
+
+      const C = {bold:true, size:10, color:{argb:'FFDC2626'}};
+      for (const val of [...reservas, totalFee]) {
+        mWrite([
+          {v:maxFecha,     font:C, fill:'FFFEF2F2', align:'left'  },
+          {v:val,          font:C, fill:'FFFEF2F2', align:'right', fmt:numFmt},
+          {v:'Comisiones', font:C, fill:'FFFEF2F2', align:'left'  },
+        ], 18);
+      }
+
+      // Nombre del Excel = nombre del CSV sin extensión
+      const baseName = file.name.replace(/\.csv$/i, '');
+      await downloadXlsx(wb, baseName);
+      totalTrans += data.length;
+      log(`  ✓ ${baseName}.xlsx — ${data.length} transacciones`, 'ok');
+
+      // Pequeña pausa entre descargas para que el navegador las procese
+      await new Promise(res => setTimeout(res, 400));
+    }
+
+    log(`${monCsvFiles.length} Excel${monCsvFiles.length>1?'s':''} descargado${monCsvFiles.length>1?'s':''}`, 'ok');
+
+    const sg = document.getElementById('mon-stats');
+    sg.style.display = 'grid';
+    sg.innerHTML = `
+      <div class="stat-box"><label>Archivos</label><div class="val pos">${monCsvFiles.length}</div></div>
+      <div class="stat-box"><label>Total transacciones</label><div class="val pos">${totalTrans}</div></div>
+    `;
+
+  } catch(e) { makeLog('mon-log')('Error: '+e.message,'err'); console.error(e); }
+}
+
+// ================================================================
+// CAIXABANK
+// ================================================================
+let caiXlsBuffer = null;
+
+setupDrop('cai-drop-xls', 'cai-input-xls', f => {
+  const r = new FileReader();
+  r.onload = ev => { caiXlsBuffer = ev.target.result; setStatus('cai-status-xls', f.name, true); document.getElementById('cai-btn').disabled = false; };
+  r.readAsArrayBuffer(f);
+});
+
+async function caixabankGenerate() {
+  document.getElementById('cai-log').innerHTML = '';
+  document.getElementById('cai-stats').style.display = 'none';
+  const log = makeLog('cai-log');
+
+  try {
+    log('Leyendo XLS...');
+
+    // Usar SheetJS para leer el XLS antiguo
+    const xlsWb = XLSX.read(caiXlsBuffer, {type: 'array', cellDates: true});
+    const xlsWs = xlsWb.Sheets[xlsWb.SheetNames[0]];
+
+    // Convertir a array de arrays
+    const aoa = XLSX.utils.sheet_to_json(xlsWs, {header: 1, defval: ''});
+
+    // Fila 0,1 = títulos a descartar | Fila 2 = cabecera | Fila 3+ = datos
+    if (aoa.length < 3) throw new Error('El archivo no tiene suficientes filas');
+
+    const headers = aoa[2];
+    const dataRows = aoa.slice(3).filter(r => r.some(v => v !== '' && v !== null && v !== undefined));
+    log(`${dataRows.length} movimientos encontrados`, 'ok');
+
+    // Construir XLSX con ExcelJS
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Movimientos');
+    ws.views = [{state:'frozen', ySplit:1}];
+    ws.columns = [
+      {key:'a',width:16},{key:'b',width:16},{key:'c',width:22},
+      {key:'d',width:36},{key:'e',width:14},{key:'f',width:14},
+    ];
+
+    let rowNum = 1;
+    const iImporte = headers.findIndex(h => String(h||'') === 'Importe');
+
+    // Helper: normalizar fecha a DD/MM/YYYY
+    function normDate(val) {
+      if (!val && val !== 0) return '';
+      // Si es Date de JS
+      if (val instanceof Date) {
+        const d = String(val.getDate()).padStart(2,'0');
+        const m = String(val.getMonth()+1).padStart(2,'0');
+        const y = val.getFullYear();
+        return `${d}/${m}/${y}`;
+      }
+      // Si es string tipo "2026-08-18 00:00:00" o "2026-08-18"
+      const s = String(val);
+      if (s.match(/^\d{4}-\d{2}-\d{2}/)) {
+        const [y,m,d] = s.slice(0,10).split('-');
+        return `${d}/${m}/${y}`;
+      }
+      // Si ya viene en DD/MM/YYYY
+      return s;
+    }
+
+    // Cabecera — fila 1 directamente
+    const hRow = ws.getRow(rowNum++);
+    hRow.height = 16;
+    headers.forEach((h, i) => {
+      const c = hRow.getCell(i+1);
+      c.value = h !== undefined ? String(h) : '';
+      c.font = {name:'Calibri', size:11};
+    });
+    hRow.commit();
+
+    // Filas de datos
+    let tImporte = 0;
+    for (const rowData of dataRows) {
+      const r = ws.getRow(rowNum++);
+      r.height = 16;
+      headers.forEach((h, i) => {
+        let val = rowData[i] !== undefined ? rowData[i] : '';
+        const c = r.getCell(i+1);
+        const colName = String(h||'');
+        if (colName.includes('Fecha')) {
+          c.value = normDate(val);
+          c.font = {name:'Calibri', size:10};
+          c.alignment = {horizontal:'right', vertical:'center'};
+        } else if (colName === 'Importe' || colName === 'Saldo') {
+          c.value = typeof val === 'number' ? val : parseFloat(String(val).replace(',','.')) || '';
+          c.numFmt = '#,##0.00';
+          c.font = {name:'Calibri', size:10};
+          c.alignment = {horizontal:'right', vertical:'center'};
+          if (colName === 'Importe' && typeof c.value === 'number') tImporte = Math.round((tImporte + c.value) * 100) / 100;
+        } else {
+          c.value = val;
+          c.font = {name:'Calibri', size:10};
+          c.alignment = {horizontal:'left', vertical:'center'};
+        }
+      });
+      r.commit();
+    }
+
+    await downloadXlsx(wb, 'caixabank_movimientos');
+    log('Excel descargado', 'ok');
+
+    const sg = document.getElementById('cai-stats');
+    sg.style.display = 'grid';
+    sg.innerHTML = `
+      <div class="stat-box"><label>Movimientos</label><div class="val pos">${dataRows.length}</div></div>
+      <div class="stat-box"><label>Total importe</label><div class="val ${tImporte >= 0 ? 'pos' : 'neg'}">${fmtEur(tImporte)}</div></div>
+    `;
+
+  } catch(e) { makeLog('cai-log')('Error: '+e.message,'err'); console.error(e); }
+}
+
+// ================================================================
+// PAYPAL
+// ================================================================
+let pplCsvText = null;
+
+setupDrop('ppl-drop-csv', 'ppl-input-csv', f => {
+  const r = new FileReader();
+  r.onload = ev => { pplCsvText = ev.target.result; setStatus('ppl-status-csv', f.name, true); document.getElementById('ppl-btn').disabled = false; };
+  r.readAsText(f, 'UTF-8');
+});
+
+async function paypalGenerate() {
+  document.getElementById('ppl-log').innerHTML = '';
+  document.getElementById('ppl-stats').style.display = 'none';
+  const log = makeLog('ppl-log');
+
+  try {
+    log('Leyendo CSV...');
+
+    // PayPal CSV usa coma como separador
+    const lines = pplCsvText.split('\n').filter(l => l.trim());
+    const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
+    const rows = lines.slice(1).map(line => {
+      const vals = []; let cur = '', inQ = false;
+      for (const ch of line) {
+        if (ch === '"') inQ = !inQ;
+        else if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
+        else cur += ch;
+      }
+      vals.push(cur.trim());
+      const obj = {};
+      headers.forEach((h,i) => obj[h] = (vals[i]||'').replace(/^"|"$/g,'').trim());
+      return obj;
+    }).filter(r => Object.values(r).some(v => v));
+
+    log(`${rows.length} filas`);
+
+    // Columnas: A(0)=Fecha, H(7)=Bruto, I(8)=Tarifa, K(10)=Email remitente, AD(29)=Saldo
+    const COL_A  = headers[0];   // Fecha
+    const COL_H  = headers[7];   // Bruto
+    const COL_I  = headers[8];   // Tarifa (comisiones)
+    const COL_K  = headers[10];  // Email remitente
+    const COL_AD = headers[29];  // Saldo
+
+    function toNum(v) {
+      try { return parseFloat(String(v).replace(/\./g,'').replace(',','.')) || 0; }
+      catch { return 0; }
+    }
+
+    const lastFecha  = rows[rows.length-1]?.[COL_A] || '';
+    const totalBruto = round2(rows.reduce((s,r) => s + toNum(r[COL_H]), 0));
+    const totalTarifa= round2(rows.reduce((s,r) => s + toNum(r[COL_I]), 0));
+    const lastSaldo  = toNum(rows[rows.length-1]?.[COL_AD] || '0');
+    const saldoComisiones = round2(lastSaldo + totalTarifa);
+
+    log(`Total bruto: ${fmtEur(totalBruto)} | Comisiones: ${fmtEur(totalTarifa)}`, 'ok');
+
+    // Build Excel
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PayPal');
+    ws.views = [{state:'frozen', ySplit:1}];
+    ws.columns = [
+      {key:'a',width:14},{key:'b',width:16},{key:'c',width:38},{key:'d',width:16},
+    ];
+    const numFmt = '#,##0.00';
+    let rowNum = 1;
+
+    function pWrite(cells, height=16) {
+      const r = ws.getRow(rowNum++);
+      r.height = height;
+      cells.forEach((cfg,i) => {
+        const c = r.getCell(i+1);
+        c.value = cfg.v !== undefined ? cfg.v : '';
+        c.font  = {name:'Calibri', ...cfg.font};
+        if (cfg.fill) c.fill = {type:'pattern',pattern:'solid',fgColor:{argb:cfg.fill}};
+        c.alignment = {horizontal:cfg.align||'left', vertical:'center'};
+        if (cfg.fmt) c.numFmt = cfg.fmt;
+      });
+      r.commit();
+    }
+
+    // Cabecera — fila 1
+    const H = {bold:true, size:11};
+    const Hf = 'FFF3F4F6';
+    pWrite([
+      {v:COL_A,  font:H, fill:Hf, align:'left' },
+      {v:COL_H,  font:H, fill:Hf, align:'right'},
+      {v:COL_K,  font:H, fill:Hf, align:'left' },
+      {v:COL_AD, font:H, fill:Hf, align:'right'},
+    ], 18);
+
+    // Filas de datos
+    for (const row of rows) {
+      pWrite([
+        {v:row[COL_A],            font:{size:10}, align:'left'  },
+        {v:row[COL_H],            font:{size:10}, align:'right', fmt:numFmt},
+        {v:row[COL_K]||'',        font:{size:10, color:{argb:'FF6B7280'}}, align:'left'},
+        {v:row[COL_AD],           font:{size:10}, align:'right', fmt:numFmt},
+      ]);
+    }
+
+    // Fila total bruto
+    const R = {bold:true, size:10, color:{argb:'FFDC2626'}};
+    const Rf = 'FFFEF2F2';
+    pWrite([
+      {v:lastFecha,          font:R, fill:Rf, align:'left' },
+      {v:String(totalBruto).replace('.',','), font:R, fill:Rf, align:'right'},
+      {v:'',                 font:R, fill:Rf, align:'left' },
+      {v:String(lastSaldo).replace('.',','),  font:R, fill:Rf, align:'right'},
+    ], 18);
+
+    // Fila comisiones
+    pWrite([
+      {v:lastFecha,               font:R, fill:Rf, align:'left' },
+      {v:String(totalTarifa).replace('.',','), font:R, fill:Rf, align:'right'},
+      {v:'Comisiones',            font:R, fill:Rf, align:'left' },
+      {v:String(saldoComisiones).replace('.',','), font:R, fill:Rf, align:'right'},
+    ], 18);
+
+    await downloadXlsx(wb, 'paypal_movimientos');
+    log('Excel descargado', 'ok');
+
+    const sg = document.getElementById('ppl-stats');
+    sg.style.display = 'grid';
+    sg.innerHTML = `
+      <div class="stat-box"><label>Transacciones</label><div class="val pos">${rows.length}</div></div>
+      <div class="stat-box"><label>Total bruto</label><div class="val pos">${fmtEur(totalBruto)}</div></div>
+      <div class="stat-box"><label>Comisiones</label><div class="val neg">${fmtEur(totalTarifa)}</div></div>
+      <div class="stat-box"><label>Saldo final</label><div class="val">${fmtEur(lastSaldo)}</div></div>
+    `;
+
+  } catch(e) { makeLog('ppl-log')('Error: '+e.message,'err'); console.error(e); }
+}
+</script>
+</body>
+</html>
